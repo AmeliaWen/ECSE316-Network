@@ -175,7 +175,7 @@ public class DNSResponse {
     }
 
     private QueryType getQueryTypeFromBytes(byte[] type) {
-        int qt = getWord(type);
+        short qt = bytesToShort(type[0], type[1]);
         switch(qt) {
             case ((short) 0x02):
                 return QueryType.NS;
@@ -206,5 +206,8 @@ public class DNSResponse {
     }
     private static int getWord(byte[] bytes) {
         return ((bytes[0] & 0xff) << 8) + (bytes[1] & 0xff);
+    }
+    private short bytesToShort(byte b1, byte b2) {
+        return (short) ((b1 << 8) | (b2 & 0xFF));
     }
 }
