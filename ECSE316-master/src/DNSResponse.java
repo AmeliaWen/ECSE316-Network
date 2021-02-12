@@ -1,3 +1,4 @@
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -13,6 +14,7 @@ public class DNSResponse {
     private int querySize;
     private OutputRecord [] answers;
     private OutputRecord [] additionals;
+    int pointerOffset = 0;
     class Pair {
         String name;
         int index;
@@ -72,11 +74,13 @@ public class DNSResponse {
     public void readAnswers () throws Exception{
         int index = offset;
         for(int i = 0; i < ANCount; i ++){
+            System.out.println(index);
             answers[i] = getAnswer(index);
             index += answers[i].getSize();
         }
         //ignore authority section
         for(int i = 0; i < NSCount; i++){
+            //answers[i] = getAnswer(index);
             index += getAnswer(index).getSize();
         }
 
@@ -87,18 +91,19 @@ public class DNSResponse {
 
 
     }
-
     private OutputRecord getAnswer (int index) throws Exception{
         OutputRecord r = new OutputRecord();
         r.setAnth(AA);
         int readByte = index;
         Pair p = getDomain(readByte);
-        readByte += p.index;
-        byte [] type = {response[index], response[index+1]};
-        QueryType qt = getQueryTypeFromBytes(type);
+        //Pair p = readWordFromIndex(readByte);
+        readByte += (int) p.index;
+        byte[] ans_type = new byte[2];
+        ans_type[0] = response[readByte];
+        ans_type[1] = response[readByte+1];
+        QueryType qt = getQueryTypeFromBytes(ans_type);
         r.setQueryType(qt);
         readByte+=2;
-        //CLASS
         byte[] bClass = { response[readByte], response[readByte + 1] };
         ByteBuffer buf = ByteBuffer.wrap(bClass);
         short qClass = buf.getShort();
@@ -152,15 +157,16 @@ public class DNSResponse {
             }
             index++;
             count++;
-            if((wordSize & 0xC0)==0xC0){
+            int read = wordSize;
+            if((read & 0xC0)== (int)0xC0){
                 byte[] offset = {(byte)(response[index-1]&0x3F), response[index]};
                 ByteBuffer wrapped = ByteBuffer.wrap(offset);
                 domain+= getDomain(wrapped.getShort()).name;
-                index+=1;
-                count+=1;
+                index++;
+                count++;
                 break;
             }else{
-                for(int i = 0; i < wordSize; i++) {
+                for(int i = 0; i < read; i++) {
                     domain += (char) response[index++];
                     count++;
                 }
@@ -175,7 +181,8 @@ public class DNSResponse {
     }
 
     private QueryType getQueryTypeFromBytes(byte[] type) {
-        short qt = bytesToShort(type[0], type[1]);
+        int qt = bytesToShort(type[0], type[1]);
+        System.out.println(qt);
         switch(qt) {
             case ((short) 0x02):
                 return QueryType.NS;

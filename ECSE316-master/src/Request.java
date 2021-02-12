@@ -37,9 +37,11 @@ public class Request {
                     addrBuffer.put((byte)0x01);
                     break;
                 case MX:
+                    System.out.println("mx");
                     addrBuffer.put((byte)0x0f);
                     break;
                 case NS:
+                    System.out.println("ns");
                     addrBuffer.put((byte)0x02);
                     break;
             }
