@@ -3,6 +3,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
+/**
+ * this class compacts information needed for DNSResponse as an instance of this class
+ */
 public class DNSResponse {
     private byte[] response;
     private boolean AA;
@@ -14,12 +17,19 @@ public class DNSResponse {
     private int querySize;
     private OutputRecord [] answers;
     private OutputRecord [] additionals;
-    int pointerOffset = 0;
+
+    //pair is used for connect the domain info and offset
     class Pair {
         String name;
         int index;
     }
-    public DNSResponse (byte[] response, int qSize){
+
+    /**
+     * this constructor initializes a response given the info received from DatagramSocket.receive
+     * @param response
+     * @param qSize
+     */
+    public DNSResponse (byte[] response, int qSize) throws Exception {
         this.response = response;
         this.querySize = qSize;
         this.offset = querySize;
@@ -28,40 +38,70 @@ public class DNSResponse {
         this.updateRecordCounts();
         answers = new OutputRecord[ANCount];
         additionals = new OutputRecord[ARCount];
-    }
-    public OutputRecord[] getAnswers() {
-        return answers;
+        this.readAnswers();
     }
 
-    public OutputRecord[] getAdditionals() {
-        return additionals;
+
+    /**
+     * this method print out response given DNSResponse
+     * it calls the method in Output record class
+     * @throws Exception
+     */
+    public void readResponse(){
+        OutputRecord[] ar = this.answers;
+        OutputRecord[] adr = this.additionals;
+        if(ar.length == 0 && adr.length == 0) {
+            System.out.println("Record not found");
+        }
+        if(ar.length != 0) {
+            System.out.println("***Answer Section ("+ar.length+" records)***");
+            for(int i=0; i< ar.length;i++) {
+                OutputRecord answer = ar[i];
+                answer.printAnswer();
+            }
+        }
+        if(adr.length != 0) {
+            System.out.println("***Additional Section ("+adr.length+" records)***");
+            for(int i=0; i< adr.length;i++) {
+                OutputRecord adrAnswer = adr[i];
+                adrAnswer.printAnswer();
+            }
+        }
     }
 
-    private void validateResponse() {
+    /**
+     * this method checks error code for the response
+     * @throws Exception
+     */
+    private void validateResponse() throws Exception {
         if(response.length <12){
-            throw new RuntimeException("wrong response size");
+            throw new Exception("wrong response size");
         }
         if (getBit(this.response[2],7) != 1) {
-            throw new RuntimeException("ERROR\tReceived response is a query, not a response.");
+            throw new Exception("ERROR\tReceived response is a query, not a response.");
         }
         if (getBit(this.response[3],7) != 1) {
-            throw new RuntimeException("ERROR\tServer does not support recursive queries.");
+            throw new Exception("ERROR\tServer does not support recursive queries.");
         }
         switch(getRCode(this.response[3])){
             case 1:
-                throw new RuntimeException("ERROR\tInvalid format, the name server was unable to interpret the query.");
+                throw new Exception("ERROR\tFormat error: the name server was unable to interpret the query.");
             case 2:
-                throw new RuntimeException("ERROR\tServer failure, the name server was unable to process this query due to a problem with the name server.");
+                throw new Exception("ERROR\tServer failure: the name server was unable to process this query due to a problem with the name server.");
             case 3:
-                throw new RuntimeException("ERROR\tName error, the domain name referenced in the query does not exist.");
+                throw new Exception("ERROR\tName error: meaningful only for responses from an authoritative name server, the code signifies that the domain name referenced in the query does not exist.");
             case 4:
-                throw new RuntimeException("ERROR\tNot implemented, the name server does not support the requested kind of query.");
+                throw new Exception("ERROR\tNot implemented: the name server does not support the requested kind of query.");
             case 5:
-                throw new RuntimeException("ERROR\tRefused, the name server refuses to perform the requested operation for policy reasons.");
+                throw new Exception("ERROR\tRefused: the name server refuses to perform the requested operation for policy reasons.");
             default:
                 break;
         }
     }
+
+    /**
+     * if there is not error code exists, this method update the ANCount, NSCount, ARCount for the response instance
+     */
     private void updateRecordCounts() {
         byte[] ANCount = {this.response[6], this.response[7]};
         this.ANCount = getWord(ANCount);
@@ -71,16 +111,19 @@ public class DNSResponse {
         this.ARCount = getWord(ARCount);
     }
 
+    /**
+     * this method put the answers and additionals into corresponding arrays
+     * it calls helper method gerAnswer
+     * @throws Exception
+     */
     public void readAnswers () throws Exception{
         int index = offset;
         for(int i = 0; i < ANCount; i ++){
-            System.out.println(index);
             answers[i] = getAnswer(index);
             index += answers[i].getSize();
         }
         //ignore authority section
         for(int i = 0; i < NSCount; i++){
-            //answers[i] = getAnswer(index);
             index += getAnswer(index).getSize();
         }
 
@@ -88,22 +131,30 @@ public class DNSResponse {
             additionals[i] = getAnswer(index);
             index += additionals[i].getSize();
         }
-
-
     }
+
+    /**
+     * this method is a helper method that reads one answer from the index
+     * @param index
+     * @return
+     * @throws Exception
+     */
     private OutputRecord getAnswer (int index) throws Exception{
         OutputRecord r = new OutputRecord();
+        //sets the auth/nonauth
         r.setAnth(AA);
+        //reads the domain name
         int readByte = index;
         Pair p = getDomain(readByte);
-        //Pair p = readWordFromIndex(readByte);
         readByte += (int) p.index;
+        //reads the response type
         byte[] ans_type = new byte[2];
         ans_type[0] = response[readByte];
         ans_type[1] = response[readByte+1];
         QueryType qt = getQueryTypeFromBytes(ans_type);
         r.setQueryType(qt);
         readByte+=2;
+        //reads the CLASS section to check error
         byte[] bClass = { response[readByte], response[readByte + 1] };
         ByteBuffer buf = ByteBuffer.wrap(bClass);
         short qClass = buf.getShort();
@@ -111,31 +162,30 @@ public class DNSResponse {
             throw new Exception("Answer error: answer CLASS should be 0x01, but " + qClass + " was found instead.");
         }
         readByte += 2;
-        //TTL
+        //TTL 32bit
         byte[] ttlBytes = {response[readByte], response[readByte + 1], response[readByte + 2], response[readByte + 3]};
         ByteBuffer wrapTtl = ByteBuffer.wrap(ttlBytes);
         r.setTtl(wrapTtl.getInt());
         readByte += 4;
-        //RDLENGTH
+        //RDLENGTH: length of RDATA field
         byte[] rdLen = {response[readByte], response[readByte + 1]};
         ByteBuffer wraprData = ByteBuffer.wrap(rdLen);
         int rdLength = wraprData.getShort();
         readByte += 2;
         Pair rData = new Pair();
         //RDATA
+        //it returns IP address for typeA, name of server for type NS, preferences for type MX
         switch(qt) {
             case A:
                 rData.name = analyzeAData(readByte);
                 break;
             case NS:
+            case CNAME:
                 rData = getDomain(readByte);
                 break;
             case MX:
                 //PREFERENCE
                 rData = getDomain(readByte + 2);
-                break;
-            case CNAME:
-                rData = getDomain(readByte);
                 break;
         }
         readByte += rdLength;
@@ -144,35 +194,42 @@ public class DNSResponse {
         return r;
     }
 
+    /**
+     * this is the helper method that returns a pair that contains domain name and its length
+     * @param index
+     * @return
+     */
     private Pair getDomain(int index){
-        byte wordSize = response[index];
+        int wordSize = response[index];
         String domain = "";
         boolean start = true;
         int count = 0;
-        while(wordSize != (short)0x0){
-            if(start) {
-                start = false;
-            }else{
+        while(wordSize != 0){
+            if (!start){
                 domain+=".";
             }
-            index++;
-            count++;
-            int read = wordSize;
-            if((read & 0xC0)== (int)0xC0){
-                byte[] offset = {(byte)(response[index-1]&0x3F), response[index]};
+            //it is a pointer
+            if((wordSize & 0xC0)== (int)0xC0){
+                byte[] offset = {(byte)(response[index]&0x3F), response[index+1]};
                 ByteBuffer wrapped = ByteBuffer.wrap(offset);
                 domain+= getDomain(wrapped.getShort()).name;
-                index++;
-                count++;
+                //index+=2;
+                count+=2;
+                //wordSize = 0;
                 break;
             }else{
-                for(int i = 0; i < read; i++) {
-                    domain += (char) response[index++];
-                    count++;
+                //if it is not a pointer, get the name directly
+                String substring = "";
+                int substringsize = response[index];
+                for(int i = 0; i < substringsize; i++) {
+                    substring += (char) response[index+i+1];
                 }
-
+                domain+=substring;
+                index += wordSize+1;
+                count += wordSize+1;
+                wordSize = response[index];
             }
-            wordSize=response[index];
+            start = false;
         }
         Pair p = new Pair();
         p.index = count;
@@ -180,9 +237,14 @@ public class DNSResponse {
         return p;
     }
 
+    /**
+     * this is a helper method that returns queryType from a 2-byte array
+     * by default, it returns type A
+     * @param type
+     * @return
+     */
     private QueryType getQueryTypeFromBytes(byte[] type) {
-        int qt = bytesToShort(type[0], type[1]);
-        System.out.println(qt);
+        int qt = getWord(type);
         switch(qt) {
             case ((short) 0x02):
                 return QueryType.NS;
@@ -194,6 +256,11 @@ public class DNSResponse {
         return QueryType.A;
     }
 
+    /**
+     * if it is a type A record, return the IP address
+     * @param readByte
+     * @return
+     */
     private String analyzeAData (int readByte){
         String address = "";
         byte[] byteAddress= {response[readByte], response[readByte + 1], response[readByte + 2], response[readByte + 3]};
@@ -205,6 +272,8 @@ public class DNSResponse {
         }
         return address;
     }
+
+    //the following are some helper methods for bit comparision
     private static int getBit(byte b, int p){
         return (b>>p)&1;
     }
@@ -213,8 +282,5 @@ public class DNSResponse {
     }
     private static int getWord(byte[] bytes) {
         return ((bytes[0] & 0xff) << 8) + (bytes[1] & 0xff);
-    }
-    private short bytesToShort(byte b1, byte b2) {
-        return (short) ((b1 << 8) | (b2 & 0xFF));
     }
 }

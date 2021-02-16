@@ -2,6 +2,10 @@ import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 
+/**
+ * this class is where the main method locates at.
+ * It parses the input then calls the method in Client class.
+ */
 public class DNSClient {
     private static int timeout = 5000;
     private static int maxRetries = 3;
@@ -39,17 +43,17 @@ public class DNSClient {
                 serverAddress = args[args.length-2].substring(1);
             }
             else{
-                throw new Exception("illegal ip address");
+                throw new Exception("Illegal IP address! Correct format: @8.8.8.8");
             }
             int byteNum = 0;
             String[] b = serverAddress.split("\\.");
             if (b.length >4) {
-                throw new Exception("wrong length of ip");
+                throw new Exception("Wrong length of ip! Please input valid IP address");
             }else{
                 for (String str: b){
                     int bNum = Integer.parseInt(str);
                     if (bNum<0||bNum>255){
-                        throw new Exception("wrong num");
+                        throw new Exception("Invalid IP address!");
                     }else{
                         ipAddress[byteNum++] = (byte)bNum;
                     }
@@ -57,9 +61,21 @@ public class DNSClient {
             }
         }
         String name = args[args.length-1];
-        Client client = new Client();
-        client.infoPrint(name, serverAddress, type);
-        DNSResponse r = client.sendRequest(name, type, timeout, ipAddress, port, maxRetries);
-        client.readResponse(r);
+        System.out.println("DnsClient sending request for "+name);
+        System.out.println("Server: "+serverAddress);
+        switch (type){
+            case A:
+                System.out.println("Request type: A");
+                break;
+            case MX:
+                System.out.println("Request type: MX");
+                break;
+            case NS:
+                System.out.println("Request type: NS");
+                break;
+        }
+        Request request = new Request();
+        DNSResponse r = request.sendRequest(name, type, timeout, ipAddress, port, maxRetries);
+        r.readResponse();
     }
 }
