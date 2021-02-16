@@ -83,7 +83,7 @@ public class DNSResponse {
         if (getBit(this.response[3],7) != 1) {
             throw new Exception("ERROR\tServer does not support recursive queries.");
         }
-        switch(getRCode(this.response[3])){
+        switch(response[3] & 0x0F){
             case 1:
                 throw new Exception("ERROR\tFormat error: the name server was unable to interpret the query.");
             case 2:
@@ -276,9 +276,6 @@ public class DNSResponse {
     //the following are some helper methods for bit comparision
     private static int getBit(byte b, int p){
         return (b>>p)&1;
-    }
-    private static int getRCode(byte b) {
-        return ((b >> 0) & 1) + ((b >> 1) & 1) * 2 +((b >> 2) & 1) * 4 + ((b >> 3) & 1) * 8;
     }
     private static int getWord(byte[] bytes) {
         return ((bytes[0] & 0xff) << 8) + (bytes[1] & 0xff);
