@@ -31,5 +31,5 @@ unanswered query before giving up. Default value: 3.
 * server (required) is the IPv4 address of the DNS server, in a.b.c.d. Format
 * name (required) is the domain name to query for.
 
-** this is the link to project report <br\>
+** this is the link to project report \
 https://docs.google.com/document/d/1nMRa5Wc4aRcDGXnMF095Pg7nYgvI8oaOz9LeLo0GIWQ/edit?usp=sharing
