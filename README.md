@@ -14,6 +14,7 @@ This program is capable of performing the following actions:
 
 It will also print out error messages if there is an error occurred (ex.invalid input, error when sending request and reading responses, etc.) 
 
+This program can be compiled with java 8/11 
 
 This program can be invoked from command line by 
 
